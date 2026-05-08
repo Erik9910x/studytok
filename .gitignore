@@ -5,4 +5,5 @@ node_modules
 .vercel
 .DS_Store
 *.log
+*.tsbuildinfo
 .tmp-ai-proxy
