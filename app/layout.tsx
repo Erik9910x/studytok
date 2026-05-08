@@ -1,18 +1,20 @@
 import type { Metadata } from "next";
-import { Poppins, Source_Serif_4 } from "next/font/google";
+import { Be_Vietnam_Pro, Source_Serif_4 } from "next/font/google";
 import "./globals.css";
 
-const poppins = Poppins({
-  variable: "--font-poppins",
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
+const beVietnam = Be_Vietnam_Pro({
+  variable: "--font-sans",
+  subsets: ["latin", "vietnamese"],
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
 });
 
 const sourceSerif = Source_Serif_4({
   variable: "--font-source-serif",
-  subsets: ["latin"],
+  subsets: ["latin", "vietnamese"],
   style: ["italic"],
-  weight: ["400", "500"],
+  weight: ["400", "500", "600"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -23,7 +25,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body suppressHydrationWarning className={`${poppins.variable} ${sourceSerif.variable} antialiased`}>
+      <body suppressHydrationWarning className={`${beVietnam.variable} ${sourceSerif.variable} antialiased`}>
         {children}
       </body>
     </html>
