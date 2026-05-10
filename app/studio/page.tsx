@@ -182,6 +182,7 @@ export default function StudioPage() {
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [error, setError] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [insideOpen, setInsideOpen] = useState(false);
   const [settings, setSettings] = useState<GenerationSettings>(defaultSettings);
   const text = copy[language];
 
@@ -275,6 +276,13 @@ export default function StudioPage() {
             StudyTok Studio
           </div>
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setInsideOpen(true)}
+              className="rounded-full border border-[#596f4e]/35 bg-white px-4 py-2 text-xs font-bold text-[#596f4e] shadow-[0_12px_28px_rgba(89,111,78,0.10)] transition hover:scale-105 hover:bg-[#f7faf4] active:scale-95"
+            >
+              Inside StudyTok AI
+            </button>
             <button
               type="button"
               onClick={() => setLanguage((current) => (current === "VN" ? "EN" : "VN"))}
@@ -390,6 +398,125 @@ export default function StudioPage() {
       </div>
 
 
+
+      {insideOpen ? (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-[#1f241d]/35 px-4 backdrop-blur-2xl">
+          <div className="max-h-[85vh] w-full max-w-5xl overflow-y-auto rounded-[2rem] bg-white/95 p-6 shadow-[0_30px_120px_rgba(31,36,29,0.28)] lg:p-8">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#879080]">Inside StudyTok AI</p>
+                <h2 className="mt-2 text-4xl font-medium tracking-[-0.045em] text-[#1f241d]">Nguyên lí hoạt động</h2>
+                <p className="mt-3 max-w-3xl text-[15px] leading-7 text-[#65705f]">
+                  StudyTok AI xử lý văn bản thành bộ câu trả lời có cấu trúc: tóm tắt, thuật ngữ, các mục giải thích rõ ràng. Không flashcard, không quiz, không filler.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setInsideOpen(false)}
+                className="rounded-full bg-[#f1f0eb] px-4 py-2 text-sm font-semibold text-[#59615a] transition hover:scale-105 active:scale-95"
+              >
+                {text.close}
+              </button>
+            </div>
+
+            <div className="mt-7 grid gap-4 lg:grid-cols-3">
+              {[
+                ["1", "Analyze", "Đọc input, đếm từ/câu, nhận diện độ phức tạp, definition, example, comparison, process, cause-effect."],
+                ["2", "Plan", "Tạo output plan: số summary, số section, mức chi tiết, complexity score, analysis brief."],
+                ["3", "Generate", "Gọi AI bằng JSON schema bắt buộc để trả đúng summary, concepts và sections."],
+              ].map(([step, title, body]) => (
+                <article key={step} className="rounded-3xl bg-[#f6f5f0] p-5">
+                  <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: moss }}>{step}</p>
+                  <h3 className="mt-2 text-2xl font-semibold tracking-[-0.035em] text-[#263021]">{title}</h3>
+                  <p className="mt-3 text-sm leading-6 text-[#65705f]">{body}</p>
+                </article>
+              ))}
+            </div>
+
+            <section className="mt-7 rounded-3xl bg-[#f6f5f0] p-5">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#879080]">3. Source map</p>
+              <h3 className="mt-2 text-2xl font-semibold tracking-[-0.035em] text-[#263021]">
+                {language === "VN" ? "Cấu trúc source dạng cây" : "Collapsible source tree"}
+              </h3>
+              <div className="mt-4 rounded-2xl border border-[#dfe6da] bg-[#fbfaf7] p-4 font-mono text-sm text-[#31402d]">
+                <details open>
+                  <summary className="cursor-pointer list-none font-bold text-[#263021]">▾ studytok/</summary>
+                  <div className="ml-4 mt-2 space-y-2 border-l border-[#dfe6da] pl-4">
+                    <details open>
+                      <summary className="cursor-pointer list-none font-semibold">▾ app/</summary>
+                      <div className="ml-4 mt-2 space-y-2 border-l border-[#dfe6da] pl-4">
+                        <details>
+                          <summary className="cursor-pointer list-none">▸ api/study-pack/</summary>
+                          <div className="ml-4 mt-2 border-l border-[#dfe6da] pl-4">
+                            <p>└── route.ts <span className="font-sans text-[#65705f]">— API: validate, analyze, plan, call Groq, normalize output</span></p>
+                          </div>
+                        </details>
+                        <details>
+                          <summary className="cursor-pointer list-none">▸ studio/</summary>
+                          <div className="ml-4 mt-2 border-l border-[#dfe6da] pl-4">
+                            <p>└── page.tsx <span className="font-sans text-[#65705f]">— Studio UI: input, settings, answer sections, source popup</span></p>
+                          </div>
+                        </details>
+                        <p>├── page.tsx <span className="font-sans text-[#65705f]">— landing page</span></p>
+                        <p>└── layout.tsx <span className="font-sans text-[#65705f]">— app shell, metadata, fonts</span></p>
+                      </div>
+                    </details>
+
+                    <details open>
+                      <summary className="cursor-pointer list-none font-semibold">▾ lib/</summary>
+                      <div className="ml-4 mt-2 space-y-1 border-l border-[#dfe6da] pl-4">
+                        <p>├── content-analyzer.ts <span className="font-sans text-[#65705f]">— content stats, complexity, feature detection</span></p>
+                        <p>└── study-pack.ts <span className="font-sans text-[#65705f]">— StudyPack types, fallback, term extraction</span></p>
+                      </div>
+                    </details>
+
+                    <details>
+                      <summary className="cursor-pointer list-none font-semibold">▸ docs/</summary>
+                      <div className="ml-4 mt-2 border-l border-[#dfe6da] pl-4">
+                        <p>└── STUDYTOK_AI_PRINCIPLES.md <span className="font-sans text-[#65705f]">— nguyên lí vận hành + source map</span></p>
+                      </div>
+                    </details>
+
+                    <p>├── package.json <span className="font-sans text-[#65705f]">— scripts and dependencies</span></p>
+                    <p>└── next.config.ts <span className="font-sans text-[#65705f]">— Next.js config</span></p>
+                  </div>
+                </details>
+              </div>
+            </section>
+
+            <section className="mt-7 grid gap-4 lg:grid-cols-2">
+              <article className="rounded-3xl bg-[#f6f5f0] p-5">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#879080]">
+                  {language === "VN" ? "Nguyên tắc thiết kế" : "Design principles"}
+                </p>
+                <h3 className="mt-2 text-xl font-semibold tracking-[-0.03em] text-[#263021]">
+                  {language === "VN" ? "Bám nội dung, có cấu trúc, dễ đọc" : "Grounded, structured, readable"}
+                </h3>
+                <ul className="mt-3 space-y-2 text-sm leading-6 text-[#65705f]">
+                  <li>• {language === "VN" ? "Mỗi mục phải bám vào văn bản gốc." : "Ground every section in the original input."}</li>
+                  <li>• {language === "VN" ? "Tiêu đề phải gọi đúng khái niệm đang được giải thích." : "Use clear titles that name the concept being explained."}</li>
+                  <li>• {language === "VN" ? "Giữ lại định nghĩa, quy trình, so sánh và quan hệ nguyên nhân - kết quả." : "Preserve definitions, processes, comparisons, and cause-effect links."}</li>
+                  <li>• {language === "VN" ? "Tăng độ chi tiết mà không làm vỡ nghĩa của nội dung." : "Scale detail by depth setting without fragmenting the meaning."}</li>
+                </ul>
+              </article>
+              <article className="rounded-3xl bg-[#f6f5f0] p-5">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#879080]">
+                  {language === "VN" ? "Kiểm tra chất lượng" : "Quality checklist"}
+                </p>
+                <h3 className="mt-2 text-xl font-semibold tracking-[-0.03em] text-[#263021]">
+                  {language === "VN" ? "Trước khi output hiển thị lên UI" : "Before output reaches the UI"}
+                </h3>
+                <ul className="mt-3 space-y-2 text-sm leading-6 text-[#65705f]">
+                  <li>• {language === "VN" ? "JSON phải khớp schema bắt buộc." : "JSON shape must match the schema exactly."}</li>
+                  <li>• {language === "VN" ? "Tóm tắt, thuật ngữ và các mục giải thích phải đúng số lượng yêu cầu." : "Summary, concepts, and sections must meet the requested counts."}</li>
+                  <li>• {language === "VN" ? "Thuật ngữ được lọc trùng và loại bỏ từ yếu." : "Terms are deduplicated and filtered for weak vocabulary."}</li>
+                  <li>• {language === "VN" ? "Các mục được normalize để UI luôn nhận dữ liệu ổn định." : "Sections are normalized so the UI always receives stable data."}</li>
+                </ul>
+              </article>
+            </section>
+          </div>
+        </div>
+      ) : null}
 
       {settingsOpen ? (
         <div className="fixed inset-0 z-50 grid place-items-center bg-[#1f241d]/35 px-4 backdrop-blur-xl">
