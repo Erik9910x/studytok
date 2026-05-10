@@ -1,17 +1,15 @@
 "use client";
 
 import type { StudyPack } from "@/lib/study-pack";
-import { ArrowLeft, BookOpen, CheckCircle2, Download, Eye, EyeOff, Loader2, Wand2 } from "lucide-react";
+import { ArrowLeft, BookOpen, CheckCircle2, Download, Loader2, Wand2 } from "lucide-react";
 import Link from "next/link";
 import { FormEvent, useMemo, useState } from "react";
 
 type Language = "VN" | "EN";
-type FlashcardMode = "answer" | "question";
 type Level = "minimal" | "short" | "medium" | "long" | "detailed";
 type SettingKey = "shortenLevel" | "quizLevel" | "practiceLevel";
 
 type GenerationSettings = Record<SettingKey, Level>;
-type FocusMode = "flashcards" | "quiz";
 
 const sampleNote =
   "Quang hợp gồm pha sáng và pha tối. Pha sáng tạo ATP và NADPH nhờ ánh sáng. Pha tối dùng CO2 để tạo glucose, giúp cây tích lũy năng lượng và giải phóng oxy.";
@@ -34,7 +32,7 @@ const copy = {
     ready: "Groq AI sẵn sàng",
     workspace: "Không gian học AI",
     title: "Biến đoạn văn dài thành ghi chú gọn gàng, dễ học.",
-    desc: "Dán văn bản hoặc ghi chú tiếng Việt vào Studio. StudyTok sẽ chia nội dung thành từng phần, rút keyword, tạo flashcard và quiz để bạn ôn nhanh hơn.",
+    desc: "Dán văn bản hoặc ghi chú tiếng Việt vào Studio. StudyTok sẽ xử lý dữ liệu, rút thuật ngữ và tạo bộ câu trả lời có cấu trúc để học dễ hiểu hơn.",
     source: "Văn bản nguồn",
     words: "từ",
     chars: "ký tự",
@@ -44,25 +42,25 @@ const copy = {
     output: "Kết quả",
     studyPack: "Bộ ôn tập",
     summaryEmpty: "Bản tóm tắt sẽ hiện ở đây sau khi bạn bấm Tạo bộ ôn tập.",
-    flashcards: "Flashcard",
-    flashcardEmpty: "Flashcard sẽ được tạo tự động từ ghi chú của bạn.",
-    quiz: "Quiz",
-    quizEmpty: "Quiz sẽ hiện ở đây sau khi AI xử lý nội dung.",
-    answer: "Đáp án",
+    flashcards: "Bộ câu trả lời",
+    flashcardEmpty: "Các mục giải thích sẽ hiện ở đây sau khi AI xử lý nội dung.",
+    quiz: "Phân tích",
+    quizEmpty: "Phân tích sẽ hiện ở đây sau khi AI xử lý nội dung.",
+    answer: "Trả lời",
     keywords: "Keyword",
     defaultKeywords: ["Ghi chú tiếng Việt", "Tóm tắt AI", "Ôn tập nhanh"],
-    parts: "Từng phần",
-    partNames: ["Phần 1 · Ý chính", "Phần 2 · Chi tiết cần nhớ", "Phần 3 · Ôn tập"],
+    parts: "Tóm tắt",
+    partNames: ["Tóm tắt"],
     reveal: "Hiện đáp án",
     hide: "Ẩn đáp án",
-    modeAnswer: "Học đáp án",
-    modeQuestion: "Tự hỏi lại",
-    noAnswer: "Bấm hiện đáp án để reveal flashcard.",
+    modeAnswer: "Đọc giải thích",
+    modeQuestion: "Xem thuật ngữ",
+    noAnswer: "Nội dung sẽ hiện sau khi tạo bộ câu trả lời.",
     settingsTitle: "Tùy chỉnh bộ ôn tập",
     settingsDesc: "Chọn mức độ trước khi AI phân tích nội dung.",
     shortenLevel: "Mức độ rút gọn",
-    quizLevel: "Số quiz mong muốn",
-    practiceLevel: "Số câu practice",
+    quizLevel: "Độ sâu phân tích",
+    practiceLevel: "Số mục giải thích",
     levels: {
       minimal: "Tối thiểu",
       short: "Ngắn",
@@ -76,8 +74,8 @@ const copy = {
     close: "Đóng",
     previous: "Trước",
     next: "Tiếp",
-    switchToQuiz: "Chuyển sang Quiz",
-    switchToCards: "Chuyển sang Flashcard",
+    switchToQuiz: "Xem phân tích",
+    switchToCards: "Xem câu trả lời",
     exportOffline: "Xuất offline",
   },
   EN: {
@@ -85,7 +83,7 @@ const copy = {
     ready: "Groq AI ready",
     workspace: "AI study workspace",
     title: "Turn long text into clean notes that are easy to study.",
-    desc: "Paste Vietnamese notes or long passages into Studio. StudyTok splits the content into parts, extracts keywords, builds flashcards, and creates quizzes for faster review.",
+    desc: "Paste Vietnamese notes or long passages into Studio. StudyTok processes the content into terms and structured answer sections.",
     source: "Source text",
     words: "words",
     chars: "chars",
@@ -95,25 +93,25 @@ const copy = {
     output: "Output",
     studyPack: "Study pack",
     summaryEmpty: "Your summary will appear here after generating a study pack.",
-    flashcards: "Flashcards",
-    flashcardEmpty: "Flashcards will be generated from your note.",
-    quiz: "Quiz",
-    quizEmpty: "Quiz questions will appear after AI processes the text.",
+    flashcards: "Answer sections",
+    flashcardEmpty: "Explanation sections will appear after AI processes the text.",
+    quiz: "Analysis",
+    quizEmpty: "Analysis will appear after AI processes the text.",
     answer: "Answer",
     keywords: "Keywords",
     defaultKeywords: ["Vietnamese notes", "AI summary", "Quick review"],
-    parts: "Parts",
-    partNames: ["Part 1 · Main idea", "Part 2 · Details", "Part 3 · Review"],
+    parts: "Summary",
+    partNames: ["Summary"],
     reveal: "Reveal answer",
     hide: "Hide answer",
-    modeAnswer: "Study answers",
-    modeQuestion: "Recall mode",
-    noAnswer: "Reveal the answer to flip this flashcard.",
+    modeAnswer: "Read explanation",
+    modeQuestion: "View terms",
+    noAnswer: "Content appears after generation.",
     settingsTitle: "Customize study pack",
     settingsDesc: "Choose how AI should analyze your text before generation.",
     shortenLevel: "Shorten level",
-    quizLevel: "Quiz amount",
-    practiceLevel: "Practice questions",
+    quizLevel: "Analysis depth",
+    practiceLevel: "Answer sections",
     levels: {
       minimal: "Minimal",
       short: "Short",
@@ -183,12 +181,8 @@ export default function StudioPage() {
   const [pack, setPack] = useState<StudyPack | null>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [error, setError] = useState("");
-  const [revealedCards, setRevealedCards] = useState<number[]>([]);
-  const [flashcardMode, setFlashcardMode] = useState<FlashcardMode>("answer");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settings, setSettings] = useState<GenerationSettings>(defaultSettings);
-  const [focusMode, setFocusMode] = useState<FocusMode | null>(null);
-  const [focusIndex, setFocusIndex] = useState(0);
   const text = copy[language];
 
   const noteStats = useMemo(() => {
@@ -218,7 +212,6 @@ export default function StudioPage() {
     setSettingsOpen(false);
     setStatus("loading");
     setError("");
-    setRevealedCards([]);
 
     try {
       const response = await fetch("/api/study-pack", {
@@ -240,60 +233,30 @@ export default function StudioPage() {
     }
   }
 
-  function toggleReveal(index: number) {
-    setRevealedCards((current) =>
-      current.includes(index) ? current.filter((item) => item !== index) : [...current, index],
-    );
-  }
-
   function exportOfflinePack() {
     if (!pack) return;
 
     const content = [
-      "STUDYTOK - BỘ ÔN TẬP OFFLINE",
+      "STUDYTOK - BỘ CÂU TRẢ LỜI OFFLINE",
       "",
-      "TÓM TẮT GỌN",
+      "TÓM TẮT",
       ...pack.summary.map((item, index) => `${index + 1}. ${item}`),
       "",
-      "KEYWORDS",
+      "THUẬT NGỮ",
       ...pack.concepts.map((concept) => `- ${concept}`),
       "",
-      "FLASHCARDS",
-      ...pack.flashcards.map((card, index) => `Card ${index + 1}\nQ: ${card.question}\nA: ${card.answer}`),
-      "",
-      "QUIZ",
-      ...pack.quiz.map((question, index) => [
-        `Quiz ${index + 1}`,
-        question.question,
-        ...question.options.map((option, optionIndex) => `${String.fromCharCode(65 + optionIndex)}. ${option}`),
-        `Đáp án: ${String.fromCharCode(65 + question.answerIndex)}. ${question.options[question.answerIndex]}`,
-      ].join("\n")),
+      "BỘ CÂU TRẢ LỜI",
+      ...pack.sections.map((section, index) => `${index + 1}. ${section.title}\n${section.body}`),
     ].join("\n\n");
 
     const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = "studytok-bo-on-tap.txt";
+    link.download = "studytok-bo-cau-tra-loi.txt";
     link.click();
     URL.revokeObjectURL(url);
   }
-
-  function openFocus(mode: FocusMode, index = 0) {
-    setFocusMode(mode);
-    setFocusIndex(index);
-  }
-
-  function moveFocus(direction: number) {
-    const length = focusMode === "quiz" ? pack?.quiz.length ?? 0 : pack?.flashcards.length ?? 0;
-    if (length === 0) return;
-    setFocusIndex((current) => (current + direction + length) % length);
-  }
-
-  const focusedFlashcard = focusMode === "flashcards" ? pack?.flashcards[focusIndex] : null;
-  const focusedQuiz = focusMode === "quiz" ? pack?.quiz[focusIndex] : null;
-  const focusTotal = focusMode === "quiz" ? pack?.quiz.length ?? 0 : pack?.flashcards.length ?? 0;
-  const focusRevealed = revealedCards.includes(focusIndex);
 
   return (
     <main suppressHydrationWarning className="min-h-screen bg-[#fbfaf7] text-[#1f241d]">
@@ -399,91 +362,24 @@ export default function StudioPage() {
               </div>
             </section>
 
-            <div className="grid gap-5 lg:grid-cols-2">
-              <section className="rounded-[2rem] bg-white p-5 shadow-[0_24px_80px_rgba(49,64,45,0.08)]">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#879080]">{text.flashcards}</p>
-                  <div className="flex gap-2">
-                    {pack ? (
-                      <button
-                        type="button"
-                        onClick={() => openFocus("flashcards")}
-                        className="rounded-full px-3 py-1.5 text-[11px] font-bold text-white transition hover:scale-105 active:scale-95"
-                        style={{ backgroundColor: moss }}
-                      >
-                        {text.focus}
-                      </button>
-                    ) : null}
-                    <button
-                      type="button"
-                      onClick={() => setFlashcardMode((current) => (current === "answer" ? "question" : "answer"))}
-                      className="rounded-full px-3 py-1.5 text-[11px] font-bold text-white transition hover:scale-105 active:scale-95"
-                      style={{ backgroundColor: moss }}
-                    >
-                      {flashcardMode === "answer" ? text.modeAnswer : text.modeQuestion}
-                    </button>
-                  </div>
-                </div>
-                <div className="mt-4 space-y-3">
-                  {(pack?.flashcards ?? []).map((card, index) => {
-                    const revealed = revealedCards.includes(index);
-                    return (
-                      <article key={`${index}-${card.question}`} className="rounded-2xl bg-[#f6f5f0] p-4">
-                        <p className="text-[15px] font-semibold leading-6 text-[#263021]">
-                          {flashcardMode === "answer" ? card.question : card.answer}
-                        </p>
-                        <div className="mt-3 rounded-xl bg-white/75 p-3 text-sm leading-6 text-[#65705f]">
-                          {revealed ? (flashcardMode === "answer" ? card.answer : card.question) : text.noAnswer}
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => toggleReveal(index)}
-                          className="mt-3 inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold text-white transition hover:scale-105 active:scale-95"
-                          style={{ backgroundColor: moss }}
-                        >
-                          {revealed ? <EyeOff size={14} /> : <Eye size={14} />}
-                          {revealed ? text.hide : text.reveal}
-                        </button>
-                      </article>
-                    );
-                  })}
-                  {!pack ? <p className="text-[15px] leading-7 text-[#65705f]">{text.flashcardEmpty}</p> : null}
-                </div>
-              </section>
-
-              <section className="rounded-[2rem] bg-white p-5 shadow-[0_24px_80px_rgba(49,64,45,0.08)]">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#879080]">{text.quiz}</p>
-                  {pack ? (
-                    <button
-                      type="button"
-                      onClick={() => openFocus("quiz")}
-                      className="rounded-full px-3 py-1.5 text-[11px] font-bold text-white transition hover:scale-105 active:scale-95"
-                      style={{ backgroundColor: moss }}
-                    >
-                      {text.focus}
-                    </button>
-                  ) : null}
-                </div>
-                <div className="mt-4 space-y-3">
-                  {(pack?.quiz ?? []).map((question, index) => (
-                    <article key={`${index}-${question.question}`} className="rounded-2xl bg-[#f6f5f0] p-4">
-                      <p className="text-[15px] font-semibold leading-6 text-[#263021]">{question.question}</p>
-                      <p className="mt-2 text-sm leading-6 text-[#65705f]">
-                        {text.answer}: {question.options[question.answerIndex]}
-                      </p>
-                    </article>
-                  ))}
-                  {!pack ? <p className="text-[15px] leading-7 text-[#65705f]">{text.quizEmpty}</p> : null}
-                </div>
-              </section>
-            </div>
+            <section className="rounded-[2rem] bg-white p-5 shadow-[0_24px_80px_rgba(49,64,45,0.08)]">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#879080]">{text.flashcards}</p>
+              <div className="mt-4 space-y-3">
+                {(pack?.sections ?? []).map((section, index) => (
+                  <article key={`${section.title}-${index}`} className="rounded-2xl bg-[#f6f5f0] p-4">
+                    <h3 className="text-[17px] font-semibold leading-6 text-[#263021]">{section.title}</h3>
+                    <p className="mt-2 text-[15px] leading-7 text-[#65705f]">{section.body}</p>
+                  </article>
+                ))}
+                {!pack ? <p className="text-[15px] leading-7 text-[#65705f]">{text.flashcardEmpty}</p> : null}
+              </div>
+            </section>
 
             <section className="rounded-[2rem] p-5 text-white shadow-[0_24px_80px_rgba(49,64,45,0.12)]" style={{ backgroundColor: mossDark }}>
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/55">{text.keywords}</p>
               <div className="mt-4 flex flex-wrap gap-2">
-                {(pack?.concepts ?? text.defaultKeywords).map((concept) => (
-                  <span key={concept} className="rounded-full bg-white/12 px-3 py-2 text-xs text-white/85">
+                {(pack?.concepts ?? text.defaultKeywords).map((concept, index) => (
+                  <span key={`${concept}-${index}`} className="rounded-full bg-white/12 px-3 py-2 text-xs text-white/85">
                     {concept}
                   </span>
                 ))}
@@ -493,99 +389,7 @@ export default function StudioPage() {
         </section>
       </div>
 
-      {focusMode ? (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-[#1f241d]/35 px-4 backdrop-blur-xl">
-          <div className="w-full max-w-3xl rounded-[2rem] bg-white p-6 shadow-[0_30px_120px_rgba(31,36,29,0.28)] lg:p-8">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#879080]">
-                  {focusMode === "quiz" ? text.quiz : text.flashcards} · {focusIndex + 1}/{focusTotal}
-                </p>
-                <h2 className="mt-2 text-4xl font-medium tracking-[-0.045em] text-[#1f241d]">{text.focus}</h2>
-              </div>
-              <button
-                type="button"
-                onClick={() => setFocusMode(null)}
-                className="rounded-full bg-[#f1f0eb] px-4 py-2 text-sm font-semibold text-[#59615a] transition hover:scale-105 active:scale-95"
-              >
-                {text.close}
-              </button>
-            </div>
 
-            <div className="mt-6 rounded-[1.5rem] bg-[#f6f5f0] p-6 lg:p-8">
-              {focusMode === "flashcards" && focusedFlashcard ? (
-                <div>
-                  <p className="text-2xl font-semibold leading-snug text-[#263021] lg:text-3xl">
-                    {flashcardMode === "answer" ? focusedFlashcard.question : focusedFlashcard.answer}
-                  </p>
-                  <div className="mt-6 rounded-2xl bg-white p-5 text-lg leading-8 text-[#5f675c]">
-                    {focusRevealed ? (flashcardMode === "answer" ? focusedFlashcard.answer : focusedFlashcard.question) : text.noAnswer}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => toggleReveal(focusIndex)}
-                    className="mt-5 inline-flex items-center gap-2 rounded-full px-5 py-3 text-sm font-semibold text-white transition hover:scale-105 active:scale-95"
-                    style={{ backgroundColor: moss }}
-                  >
-                    {focusRevealed ? <EyeOff size={16} /> : <Eye size={16} />}
-                    {focusRevealed ? text.hide : text.reveal}
-                  </button>
-                </div>
-              ) : null}
-
-              {focusMode === "quiz" && focusedQuiz ? (
-                <div>
-                  <p className="text-2xl font-semibold leading-snug text-[#263021] lg:text-3xl">{focusedQuiz.question}</p>
-                  <div className="mt-6 grid gap-3">
-                    {focusedQuiz.options.map((option, index) => (
-                      <div
-                        key={`${index}-${option}`}
-                        className="rounded-2xl p-4 text-base font-medium"
-                        style={{
-                          backgroundColor: index === focusedQuiz.answerIndex ? mossSoft : "#ffffff",
-                          color: index === focusedQuiz.answerIndex ? mossDark : "#5f675c",
-                        }}
-                      >
-                        {String.fromCharCode(65 + index)}. {option}
-                      </div>
-                    ))}
-                  </div>
-                  <p className="mt-5 text-sm font-semibold" style={{ color: moss }}>
-                    {text.answer}: {focusedQuiz.options[focusedQuiz.answerIndex]}
-                  </p>
-                </div>
-              ) : null}
-            </div>
-
-            <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
-              <button
-                type="button"
-                onClick={() => setFocusMode(focusMode === "quiz" ? "flashcards" : "quiz")}
-                className="rounded-full bg-[#f1f0eb] px-5 py-3 text-sm font-semibold text-[#59615a] transition hover:scale-105 active:scale-95"
-              >
-                {focusMode === "quiz" ? text.switchToCards : text.switchToQuiz}
-              </button>
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => moveFocus(-1)}
-                  className="rounded-full bg-[#f1f0eb] px-5 py-3 text-sm font-semibold text-[#59615a] transition hover:scale-105 active:scale-95"
-                >
-                  {text.previous}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => moveFocus(1)}
-                  className="rounded-full px-5 py-3 text-sm font-semibold text-white transition hover:scale-105 active:scale-95"
-                  style={{ backgroundColor: moss }}
-                >
-                  {text.next}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : null}
 
       {settingsOpen ? (
         <div className="fixed inset-0 z-50 grid place-items-center bg-[#1f241d]/35 px-4 backdrop-blur-xl">

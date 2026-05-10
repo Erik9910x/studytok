@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { StudyPack } from "@/lib/study-pack";
 import { generateStudyPack } from "@/lib/study-pack";
+import { analyzeContent } from "@/lib/content-analyzer";
 
 const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
 const DEFAULT_MODEL = "openai/gpt-oss-120b";
@@ -13,6 +14,15 @@ type StudyPackSettings = {
   shortenLevel: Level;
   quizLevel: Level;
   practiceLevel: Level;
+};
+
+type OutputPlan = {
+  summaryCount: number;
+  sectionCount: number;
+  outputLevel: Level;
+  complexity: string;
+  complexityScore: number;
+  analysisBrief: string;
 };
 
 const levelLabels: Record<Level, string> = {
@@ -31,22 +41,13 @@ const summaryCounts: Record<Level, number> = {
   detailed: 9,
 };
 
-const quizCounts: Record<Level, number> = {
-  minimal: 5,
-  short: 8,
-  medium: 12,
-  long: 16,
-  detailed: 20,
+const sectionCounts: Record<Level, number> = {
+  minimal: 3,
+  short: 4,
+  medium: 6,
+  long: 8,
+  detailed: 10,
 };
-
-const practiceCounts: Record<Level, number> = {
-  minimal: 6,
-  short: 10,
-  medium: 15,
-  long: 22,
-  detailed: 30,
-};
-
 
 export async function POST(request: Request) {
   try {
@@ -63,9 +64,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: `Note is too long. Maximum is ${maxChars} characters.` }, { status: 413 });
     }
 
+    const analysis = analyzeContent(note);
+    const plan = createOutputPlan(settings, analysis);
     const keys = getGroqKeys();
+
     if (keys.length === 0) {
-      return NextResponse.json({ pack: resizeStudyPack(generateStudyPack(note), settings), source: "local-fallback", warning: "GROQ_API_KEYS is not configured." });
+      return NextResponse.json({ pack: resizeStudyPack(generateStudyPack(note, plan), plan), source: "local-fallback", plan, warning: "GROQ_API_KEYS is not configured." });
     }
 
     const models = Array.from(new Set([process.env.GROQ_MODEL || DEFAULT_MODEL, process.env.GROQ_FALLBACK_MODEL || DEFAULT_FALLBACK_MODEL]));
@@ -74,8 +78,8 @@ export async function POST(request: Request) {
     for (const model of models) {
       for (const apiKey of keys) {
         try {
-          const pack = await requestStudyPack({ apiKey, model, note, settings });
-          return NextResponse.json({ pack: resizeStudyPack(pack, settings), source: "groq", model });
+          const pack = await requestStudyPack({ apiKey, model, note, settings, plan });
+          return NextResponse.json({ pack: resizeStudyPack(pack, plan), source: "groq", model, plan });
         } catch (error) {
           errors.push(error instanceof Error ? error.message : "Unknown Groq error");
         }
@@ -83,7 +87,7 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json(
-      { pack: resizeStudyPack(generateStudyPack(note), settings), source: "local-fallback", warning: "Groq failed; returned local fallback.", detail: errors.at(-1) },
+      { pack: resizeStudyPack(generateStudyPack(note, plan), plan), source: "local-fallback", plan, warning: "Groq failed; returned local fallback.", detail: errors.at(-1) },
       { status: 200 },
     );
   } catch {
@@ -91,20 +95,16 @@ export async function POST(request: Request) {
   }
 }
 
-function createStudyPackSchema(settings: StudyPackSettings) {
-  const summaryCount = summaryCounts[settings.shortenLevel];
-  const flashcardCount = practiceCounts[settings.practiceLevel];
-  const quizCount = quizCounts[settings.quizLevel];
-
+function createStudyPackSchema(plan: OutputPlan) {
   return {
     type: "object",
     additionalProperties: false,
-    required: ["summary", "concepts", "flashcards", "quiz"],
+    required: ["summary", "concepts", "sections"],
     properties: {
       summary: {
         type: "array",
-        minItems: summaryCount,
-        maxItems: summaryCount,
+        minItems: plan.summaryCount,
+        maxItems: plan.summaryCount,
         items: { type: "string" },
       },
       concepts: {
@@ -113,41 +113,17 @@ function createStudyPackSchema(settings: StudyPackSettings) {
         maxItems: 16,
         items: { type: "string" },
       },
-      flashcards: {
+      sections: {
         type: "array",
-        minItems: flashcardCount,
-        maxItems: flashcardCount,
+        minItems: plan.sectionCount,
+        maxItems: plan.sectionCount,
         items: {
           type: "object",
           additionalProperties: false,
-          required: ["question", "answer"],
+          required: ["title", "body"],
           properties: {
-            question: { type: "string" },
-            answer: { type: "string" },
-          },
-        },
-      },
-      quiz: {
-        type: "array",
-        minItems: quizCount,
-        maxItems: quizCount,
-        items: {
-          type: "object",
-          additionalProperties: false,
-          required: ["question", "options", "answerIndex"],
-          properties: {
-            question: { type: "string" },
-            options: {
-              type: "array",
-              minItems: 4,
-              maxItems: 4,
-              items: { type: "string" },
-            },
-            answerIndex: {
-              type: "integer",
-              minimum: 0,
-              maximum: 3,
-            },
+            title: { type: "string" },
+            body: { type: "string" },
           },
         },
       },
@@ -169,13 +145,50 @@ function normalizeLevel(value: unknown): Level {
   return typeof value === "string" && value in summaryCounts ? (value as Level) : "medium";
 }
 
-function resizeStudyPack(pack: StudyPack, settings: StudyPackSettings): StudyPack {
+function createOutputPlan(settings: StudyPackSettings, analysis: ReturnType<typeof analyzeContent>): OutputPlan {
+  const outputLevel = settings.shortenLevel;
+
   return {
-    summary: pack.summary.slice(0, summaryCounts[settings.shortenLevel]),
-    concepts: pack.concepts.slice(0, 16),
-    flashcards: pack.flashcards.slice(0, practiceCounts[settings.practiceLevel]),
-    quiz: pack.quiz.slice(0, quizCounts[settings.quizLevel]),
+    summaryCount: summaryCounts[outputLevel],
+    sectionCount: sectionCounts[settings.practiceLevel],
+    outputLevel,
+    complexity: analysis.complexity,
+    complexityScore: analysis.complexityScore,
+    analysisBrief: [
+      `${analysis.wordCount} words`,
+      `${analysis.sentenceCount} sentences`,
+      analysis.hasDefinitions ? "definitions" : "no definitions",
+      analysis.hasProcesses ? "process" : "no process",
+      analysis.hasComparisons ? "comparison" : "no comparison",
+      analysis.hasCauses ? "cause-effect" : "no cause-effect",
+    ].join(", "),
   };
+}
+
+function resizeStudyPack(pack: StudyPack, plan: OutputPlan): StudyPack {
+  return {
+    summary: ensureStrings(pack.summary, plan.summaryCount),
+    concepts: ensureConcepts(pack.concepts),
+    sections: ensureSections(pack.sections, plan.sectionCount),
+  };
+}
+
+function ensureStrings(items: unknown[], count: number): string[] {
+  const values = items.slice(0, count).map(String).filter(Boolean);
+  while (values.length < count) values.push(`Nội dung bổ sung ${values.length + 1} cần được hiểu trong mạch chính của văn bản.`);
+  return values;
+}
+
+function ensureConcepts(items: unknown[]): string[] {
+  const values = Array.from(new Set(items.map(String).filter(Boolean))).slice(0, 16);
+  while (values.length < 8) values.push(`Thuật ngữ bổ sung ${values.length + 1}`);
+  return values;
+}
+
+function ensureSections(items: StudyPack["sections"], count: number): StudyPack["sections"] {
+  const values = items.slice(0, count).map((section) => ({ title: String(section.title), body: String(section.body) }));
+  while (values.length < count) values.push({ title: `Mục bổ sung ${values.length + 1}`, body: "Mục này cần được nối lại với chủ đề chính của văn bản." });
+  return values;
 }
 
 function getGroqKeys(): string[] {
@@ -195,11 +208,13 @@ async function requestStudyPack({
   model,
   note,
   settings,
+  plan,
 }: {
   apiKey: string;
   model: string;
   note: string;
   settings: StudyPackSettings;
+  plan: OutputPlan;
 }): Promise<StudyPack> {
   const response = await fetch(GROQ_ENDPOINT, {
     method: "POST",
@@ -213,36 +228,21 @@ async function requestStudyPack({
         {
           role: "system",
           content:
-            "You create Vietnamese study packs from user notes. The JSON schema exact-count constraints are mandatory. You must fully populate every required array to its exact minItems/maxItems count. Never return fewer summary parts, quiz questions, or flashcards than requested. Return only valid JSON that matches the provided schema. Do not include markdown.",
+            "Bạn là engine xử lý dữ liệu học liệu đa lĩnh vực. Không tạo flashcard, không tạo quiz. Nhiệm vụ là biến input thành bộ câu trả lời có cấu trúc: tóm tắt cân đối, thuật ngữ, các mục giải thích logic. Trả về JSON đúng schema, không markdown, không text ngoài JSON.",
         },
         {
           role: "user",
-          content: `Create a study pack from this note.
-
-User settings:
-- Shorten/detail level: ${levelLabels[settings.shortenLevel]} (${summaryCounts[settings.shortenLevel]} summary parts)
-- Quiz amount: ${levelLabels[settings.quizLevel]} (${quizCounts[settings.quizLevel]} quiz questions)
-- Practice question amount: ${levelLabels[settings.practiceLevel]} (${practiceCounts[settings.practiceLevel]} flashcards)
-
-Requirements:
-- Write in Vietnamese unless the source note is clearly English.
-- Summary must contain EXACTLY ${summaryCounts[settings.shortenLevel]} items. Each item should be useful, not a filler sentence.
-- Quiz must contain EXACTLY ${quizCounts[settings.quizLevel]} questions with 4 options each.
-- Flashcards must contain EXACTLY ${practiceCounts[settings.practiceLevel]} cards.
-- If the note is short, create additional useful recall/application questions from the same concepts instead of returning fewer items.
-
-Note:
-${note}`,
+          content: `INPUT:\n${note}\n\nOUTPUT PLAN:\n- summary level: ${levelLabels[settings.shortenLevel]}\n- detail level: ${levelLabels[settings.practiceLevel]}\n- analysis: ${plan.analysisBrief}\n- complexity: ${plan.complexity} (${plan.complexityScore}/100)\n- summary items: EXACTLY ${plan.summaryCount}\n- answer sections: EXACTLY ${plan.sectionCount}\n- concepts: 8-16\n\nRULES:\n1. First infer domain/topic and structure of INPUT.\n2. Summary must compress the whole text without losing core meaning. Longer output means more depth, not shorter fragmented filler.\n3. Concepts must be real terms/ideas from INPUT, not stopwords, not generic words.\n4. Sections are the main product. Each section needs a concrete title naming what it explains.\n5. Section titles must NOT be \"Phần 1\", \"Mục 2\", \"Chi tiết\", \"Ôn tập\", \"Ý chính\", or any numbered filler.\n6. Section bodies must explain what that title means, why it matters, and how it connects to the whole input.\n7. Balance output: do not over-expand trivial details; do not shrink important concepts just to hit count.\n8. If INPUT is short, deepen explanation around the same real topic instead of inventing unrelated material.\n9. Vietnamese output unless INPUT is clearly English.`,
         },
       ],
-      temperature: 0.2,
-      max_completion_tokens: 6500,
+      temperature: 0.25,
+      max_completion_tokens: 4500,
       response_format: {
         type: "json_schema",
         json_schema: {
           name: "study_pack",
           strict: true,
-          schema: createStudyPackSchema(settings),
+          schema: createStudyPackSchema(plan),
         },
       },
     }),
@@ -266,21 +266,16 @@ ${note}`,
 function normalizeStudyPack(value: unknown): StudyPack {
   const pack = value as StudyPack;
 
-  if (!Array.isArray(pack.summary) || !Array.isArray(pack.concepts) || !Array.isArray(pack.flashcards) || !Array.isArray(pack.quiz)) {
+  if (!Array.isArray(pack.summary) || !Array.isArray(pack.concepts) || !Array.isArray(pack.sections)) {
     throw new Error("Groq returned an invalid study pack shape.");
   }
 
   return {
     summary: pack.summary.slice(0, 9).map(String),
     concepts: pack.concepts.slice(0, 16).map(String),
-    flashcards: pack.flashcards.slice(0, 30).map((card) => ({
-      question: String(card.question),
-      answer: String(card.answer),
-    })),
-    quiz: pack.quiz.slice(0, 20).map((question) => ({
-      question: String(question.question),
-      options: question.options.slice(0, 4).map(String),
-      answerIndex: Math.min(3, Math.max(0, Number(question.answerIndex) || 0)),
+    sections: pack.sections.slice(0, 10).map((section) => ({
+      title: String(section.title),
+      body: String(section.body),
     })),
   };
 }
